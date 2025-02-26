@@ -15,8 +15,9 @@ resources_path = 'resources'
 data_list = []
 # Variables pour le comptage des fichiers
 files_processed = 0
-# Une petite liste pour se rappeler des fichiers qui n'ont pas pu etre traites
+# Des listes pour se rappeler des fichiers qui n'ont pas pu etre traites
 files_skipped = []
+files_empty = []
 
 
 
@@ -82,6 +83,7 @@ for root, dirs, files in os.walk(resources_path):
 
                 # Extraire et nettoyer les informations des cellules spécifiques
                 # voir plus haut quand on a declarer notre fonction perso `sanitize_value`
+                path = file_path
                 nom = sanitize_value(sheet['A9'].value)
                 prenom = sanitize_value(sheet['A10'].value)
                 adresse = sanitize_value(sheet['A11'].value)
@@ -130,7 +132,8 @@ for root, dirs, files in os.walk(resources_path):
 
                 # On a finit de traiter toutes les donnees
                 # On ajoute tout ca dans notre liste perso
-                data_list.append({
+                new_entry = {
+                    'Path': path,
                     'Nom': nom,
                     'Prénom': prenom,
                     'Adresse': adresse,
@@ -140,7 +143,16 @@ for root, dirs, files in os.walk(resources_path):
                     'Plaques': plaques,
                     'Année/KM': annee_km,
                     'Date de la facture': date_facture
-                })
+                }
+
+                # Test si la nouvelle entree est vide, si tout est vide sauf Path,
+                # on considere l'erreure en ajoutant a la liste des fichiers vides
+                if all(not str(value).strip() for key, value in new_entry.items() if key != 'Path'):
+                    print(f"Erreur lors du traitement du fichier {file_path}, donnees vides")
+                    files_empty.append(file_path)
+                    continue
+
+                data_list.append(new_entry)
 
                 # Incrementation du nombre de fichiers xlsx traite
                 files_processed += 1
@@ -163,13 +175,21 @@ for root, dirs, files in os.walk(resources_path):
 # On balance notre liste remplit de toutes les
 # donnees lues. Et on va utiliser pandas pour
 # refourger ca a Excel.
-df = pd.DataFrame(data_list)
+df = pd.DataFrame(data_list, columns=[
+    'Path', 'Nom', 'Prénom', 'Adresse', 'Localité', 'Téléphone',
+    'Genre véhicule', 'Plaques', 'Année/KM', 'Date de la facture'
+])
 
 # Enregistrer le DataFrame dans un nouveau fichier Excel
 df.to_excel('agrégation_factures.xlsx', index=False)
 
 print(f"\nAgrégation terminée. Le fichier 'agrégation_factures.xlsx' a été créé.")
 print(f"Nombre de fichiers traités : {files_processed}")
+
+if files_empty: # Si il y a quelque chose dans notre liste de fichier vide
+    print("\nLes fichiers suivants sont vide :")
+    for empty_file in files_empty:
+        print(f"- {empty_file}")
 if files_skipped: # Si il y a quelque chose dans notre liste de fichier non traite
     print("\nLes fichiers suivants n'ont pas été traités :")
     for skipped_file in files_skipped:
